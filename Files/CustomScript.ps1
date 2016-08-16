@@ -4,19 +4,38 @@ Update-DscConfiguration -wait -ver
 
 ## Installing Choco ! 
 
+# =====================================================================
+# Copyright 2011 - Present RealDimensions Software, LLC, and the
+# original authors/contributors from ChocolateyGallery
+# at https://github.com/chocolatey/chocolatey.org
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# =====================================================================
 
-$url = "https://chocolatey.org/api/v2/package/chocolatey/"
-# introduced when there were performance issues - kept around in case we
-# run into them again.
-$url = "https://packages.chocolatey.org/chocolatey.0.9.9.12.nupkg"
+# Environment Variables, specified as $env:NAME in PowerShell.exe and %NAME% in cmd.exe.
+# For explicit proxy, please set $env:chocolateyProxyLocation and optionally $env:chocolateyProxyUser and $env:chocolateyProxyPassword
+# For an explicit version of Chocolatey, please set $env:chocolateyVersion = 'versionnumber'
+# To target a different url for chocolatey.nupkg, please set $env:chocolateyDownloadUrl = 'full url to nupkg file'
+# NOTE: $env:chocolateyDownloadUrl does not work with $env:chocolateyVersion.
+# To use built-in compression (no 7zip download), please set $env:chocolateyUseWindowsCompression = 'true'
+
+#specifically use the API to get the latest version (below)
+$url = ''
 
 $chocolateyVersion = $env:chocolateyVersion
 if (![string]::IsNullOrEmpty($chocolateyVersion)){
   Write-Output "Downloading specific version of Chocolatey: $chocolateyVersion"
   $url = "https://chocolatey.org/api/v2/package/chocolatey/$chocolateyVersion"
-  # introduced when there were performance issues - kept around in case we
-  # run into them again.
-  #$url = "https://packages.chocolatey.org/chocolatey.$chocolateyVersion.nupkg"
 }
 
 $chocolateyDownloadUrl = $env:chocolateyDownloadUrl
@@ -63,12 +82,11 @@ function Fix-PowerShellOutputRedirectionBug {
 
 Fix-PowerShellOutputRedirectionBug
 
-function Download-File {
+function Get-Downloader {
 param (
-  [string]$url,
-  [string]$file
+  [string]$url
  )
-  Write-Output "Downloading $url to $file"
+
   $downloader = new-object System.Net.WebClient
 
   $defaultCreds = [System.Net.CredentialCache]::DefaultCredentials
@@ -82,32 +100,60 @@ param (
   $explicitProxyPassword = $env:chocolateyProxyPassword
   if ($explicitProxy -ne $null) {
     # explicit proxy
-  $proxy = New-Object System.Net.WebProxy($explicitProxy, $true)
-  if ($explicitProxyPassword -ne $null) {
-    $passwd = ConvertTo-SecureString $explicitProxyPassword -AsPlainText -Force
-    $proxy.Credentials = New-Object System.Management.Automation.PSCredential ($explicitProxyUser, $passwd)
-  }
+    $proxy = New-Object System.Net.WebProxy($explicitProxy, $true)
+    if ($explicitProxyPassword -ne $null) {
+      $passwd = ConvertTo-SecureString $explicitProxyPassword -AsPlainText -Force
+      $proxy.Credentials = New-Object System.Management.Automation.PSCredential ($explicitProxyUser, $passwd)
+    }
 
-  Write-Output "Using explicit proxy server '$explicitProxy'."
+    Write-Debug "Using explicit proxy server '$explicitProxy'."
     $downloader.Proxy = $proxy
 
   } elseif (!$downloader.Proxy.IsBypassed($url))
   {
-  # system proxy (pass through)
+    # system proxy (pass through)
     $creds = $defaultCreds
     if ($creds -eq $null) {
       Write-Debug "Default credentials were null. Attempting backup method"
       $cred = get-credential
       $creds = $cred.GetNetworkCredential();
     }
+    
     $proxyaddress = $downloader.Proxy.GetProxy($url).Authority
-    Write-Output "Using system proxy server '$proxyaddress'."
+    Write-Debug "Using system proxy server '$proxyaddress'."
     $proxy = New-Object System.Net.WebProxy($proxyaddress)
     $proxy.Credentials = $creds
     $downloader.Proxy = $proxy
-  }
+  }  
+  
+  return $downloader
+}
 
+function Download-String {
+param (
+  [string]$url
+ )
+  $downloader = Get-Downloader $url
+  
+  return $downloader.DownloadString($url)
+}
+
+function Download-File {
+param (
+  [string]$url,
+  [string]$file
+ )
+  Write-Output "Downloading $url to $file"
+  $downloader = Get-Downloader $url
+  
   $downloader.DownloadFile($url, $file)
+}
+
+if ($url -eq $null -or $url -eq '') {
+  Write-Output "Getting latest version of the Chocolatey package for download."
+  $url = 'https://chocolatey.org/api/v2/Packages()?$filter=((Id%20eq%20%27chocolatey%27)%20and%20(not%20IsPrerelease))%20and%20IsLatestVersion'
+  [xml]$result = Download-String $url
+  $url = $result.feed.entry.content.src
 }
 
 # Download the Chocolatey package
@@ -163,5 +209,81 @@ $chocoPkgDir = Join-Path $chocoPath 'lib\chocolatey'
 $nupkg = Join-Path $chocoPkgDir 'chocolatey.nupkg'
 if (![System.IO.Directory]::Exists($chocoPkgDir)) { [System.IO.Directory]::CreateDirectory($chocoPkgDir); }
 Copy-Item "$file" "$nupkg" -Force -ErrorAction SilentlyContinue
+
+# SIG # Begin signature block
+# MIINWwYJKoZIhvcNAQcCoIINTDCCDUgCAQExDzANBglghkgBZQMEAgEFADB5Bgor
+# BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCC0fiD4BYS2Es8+
+# +BwCbLhGDtXNnuIzaS/Iho2eIVo49aCCCngwggUwMIIEGKADAgECAhAECRgbX9W7
+# ZnVTQ7VvlVAIMA0GCSqGSIb3DQEBCwUAMGUxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
+# EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xJDAiBgNV
+# BAMTG0RpZ2lDZXJ0IEFzc3VyZWQgSUQgUm9vdCBDQTAeFw0xMzEwMjIxMjAwMDBa
+# Fw0yODEwMjIxMjAwMDBaMHIxCzAJBgNVBAYTAlVTMRUwEwYDVQQKEwxEaWdpQ2Vy
+# dCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xMTAvBgNVBAMTKERpZ2lD
+# ZXJ0IFNIQTIgQXNzdXJlZCBJRCBDb2RlIFNpZ25pbmcgQ0EwggEiMA0GCSqGSIb3
+# DQEBAQUAA4IBDwAwggEKAoIBAQD407Mcfw4Rr2d3B9MLMUkZz9D7RZmxOttE9X/l
+# qJ3bMtdx6nadBS63j/qSQ8Cl+YnUNxnXtqrwnIal2CWsDnkoOn7p0WfTxvspJ8fT
+# eyOU5JEjlpB3gvmhhCNmElQzUHSxKCa7JGnCwlLyFGeKiUXULaGj6YgsIJWuHEqH
+# CN8M9eJNYBi+qsSyrnAxZjNxPqxwoqvOf+l8y5Kh5TsxHM/q8grkV7tKtel05iv+
+# bMt+dDk2DZDv5LVOpKnqagqrhPOsZ061xPeM0SAlI+sIZD5SlsHyDxL0xY4PwaLo
+# LFH3c7y9hbFig3NBggfkOItqcyDQD2RzPJ6fpjOp/RnfJZPRAgMBAAGjggHNMIIB
+# yTASBgNVHRMBAf8ECDAGAQH/AgEAMA4GA1UdDwEB/wQEAwIBhjATBgNVHSUEDDAK
+# BggrBgEFBQcDAzB5BggrBgEFBQcBAQRtMGswJAYIKwYBBQUHMAGGGGh0dHA6Ly9v
+# Y3NwLmRpZ2ljZXJ0LmNvbTBDBggrBgEFBQcwAoY3aHR0cDovL2NhY2VydHMuZGln
+# aWNlcnQuY29tL0RpZ2lDZXJ0QXNzdXJlZElEUm9vdENBLmNydDCBgQYDVR0fBHow
+# eDA6oDigNoY0aHR0cDovL2NybDQuZGlnaWNlcnQuY29tL0RpZ2lDZXJ0QXNzdXJl
+# ZElEUm9vdENBLmNybDA6oDigNoY0aHR0cDovL2NybDMuZGlnaWNlcnQuY29tL0Rp
+# Z2lDZXJ0QXNzdXJlZElEUm9vdENBLmNybDBPBgNVHSAESDBGMDgGCmCGSAGG/WwA
+# AgQwKjAoBggrBgEFBQcCARYcaHR0cHM6Ly93d3cuZGlnaWNlcnQuY29tL0NQUzAK
+# BghghkgBhv1sAzAdBgNVHQ4EFgQUWsS5eyoKo6XqcQPAYPkt9mV1DlgwHwYDVR0j
+# BBgwFoAUReuir/SSy4IxLVGLp6chnfNtyA8wDQYJKoZIhvcNAQELBQADggEBAD7s
+# DVoks/Mi0RXILHwlKXaoHV0cLToaxO8wYdd+C2D9wz0PxK+L/e8q3yBVN7Dh9tGS
+# dQ9RtG6ljlriXiSBThCk7j9xjmMOE0ut119EefM2FAaK95xGTlz/kLEbBw6RFfu6
+# r7VRwo0kriTGxycqoSkoGjpxKAI8LpGjwCUR4pwUR6F6aGivm6dcIFzZcbEMj7uo
+# +MUSaJ/PQMtARKUT8OZkDCUIQjKyNookAv4vcn4c10lFluhZHen6dGRrsutmQ9qz
+# sIzV6Q3d9gEgzpkxYz0IGhizgZtPxpMQBvwHgfqL2vmCSfdibqFT+hKUGIUukpHq
+# aGxEMrJmoecYpJpkUe8wggVAMIIEKKADAgECAhAHdGbtomdvOuySF9IwU3EQMA0G
+# CSqGSIb3DQEBCwUAMHIxCzAJBgNVBAYTAlVTMRUwEwYDVQQKEwxEaWdpQ2VydCBJ
+# bmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xMTAvBgNVBAMTKERpZ2lDZXJ0
+# IFNIQTIgQXNzdXJlZCBJRCBDb2RlIFNpZ25pbmcgQ0EwHhcNMTYwMzI0MDAwMDAw
+# WhcNMTcwMzI4MTIwMDAwWjB9MQswCQYDVQQGEwJVUzEPMA0GA1UECBMGS2Fuc2Fz
+# MQ8wDQYDVQQHEwZUb3Bla2ExJTAjBgNVBAoTHFJlYWxEaW1lbnNpb25zIFNvZnR3
+# YXJlLCBMTEMxJTAjBgNVBAMTHFJlYWxEaW1lbnNpb25zIFNvZnR3YXJlLCBMTEMw
+# ggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC52YS2WKUpBtdkDyJ3G0Qm
+# 42v+W+yqr7DediVzIeCjHpKNkmmxO8+lS+nniFDjoFGO1JG/G3ZywVRFlM1LKHeP
+# M1eON6wT0H1gvhxpMzyuC/SRW9wvMtTlvHnjdTLW06Oe9tvGkQkTM8rbzwRDIZ9o
+# ddT8BxHSOmGelrAN9CwKf60ziw8jKLZnuAuZwSgkX5K7wvOs8viqydlnt7z3Wyim
+# L+wjue85Mpa7jyjIfnUqssN1qz4nce+e89CxTD2AbWjGwnfTcTgmj3EUSJRQgDRk
+# J+O/sVzS/V76xajLoPvI4ZlAsMpeK3ptLYqviU3ZaNUzLQWFjuWqc3fhjbWDFF51
+# AgMBAAGjggHFMIIBwTAfBgNVHSMEGDAWgBRaxLl7KgqjpepxA8Bg+S32ZXUOWDAd
+# BgNVHQ4EFgQUT0GgvxvwrOqMjXQ8yw7QDagIVJ4wDgYDVR0PAQH/BAQDAgeAMBMG
+# A1UdJQQMMAoGCCsGAQUFBwMDMHcGA1UdHwRwMG4wNaAzoDGGL2h0dHA6Ly9jcmwz
+# LmRpZ2ljZXJ0LmNvbS9zaGEyLWFzc3VyZWQtY3MtZzEuY3JsMDWgM6Axhi9odHRw
+# Oi8vY3JsNC5kaWdpY2VydC5jb20vc2hhMi1hc3N1cmVkLWNzLWcxLmNybDBMBgNV
+# HSAERTBDMDcGCWCGSAGG/WwDATAqMCgGCCsGAQUFBwIBFhxodHRwczovL3d3dy5k
+# aWdpY2VydC5jb20vQ1BTMAgGBmeBDAEEATCBhAYIKwYBBQUHAQEEeDB2MCQGCCsG
+# AQUFBzABhhhodHRwOi8vb2NzcC5kaWdpY2VydC5jb20wTgYIKwYBBQUHMAKGQmh0
+# dHA6Ly9jYWNlcnRzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydFNIQTJBc3N1cmVkSURD
+# b2RlU2lnbmluZ0NBLmNydDAMBgNVHRMBAf8EAjAAMA0GCSqGSIb3DQEBCwUAA4IB
+# AQAD6K2ldfDx7hOZxW6smYkiV4lxXY4bewxGv/gh2hjWgLiQ/sornz2fHDni/kOf
+# qhn8/3KvYd4V33QqMqjm/qsRpwjj9NC/Q2BGuTg0ax3e/Z9ZIvcYB4xx8CRbGKse
+# R9lixgMAJZMCWyGzAC/E3XX+BX3B6y8N5zBIKRY1M7xub+LM7zW9LGMhX3e56J7G
+# UF7zIzQ7ZkaJzfxFbVvEz2/KNoNGiCmA7Y0biMXpX9730Dbg4Z+B4SUe4k4WPLS/
+# 3goAq8lVMFtoqShvyvrmYtj2gFjQmH3BzSCSRZrAFbWYDCga57Fq7A4xrF2i67kG
+# oljzeP+/35wuoOlrggn2EuJ1MYICOTCCAjUCAQEwgYYwcjELMAkGA1UEBhMCVVMx
+# FTATBgNVBAoTDERpZ2lDZXJ0IEluYzEZMBcGA1UECxMQd3d3LmRpZ2ljZXJ0LmNv
+# bTExMC8GA1UEAxMoRGlnaUNlcnQgU0hBMiBBc3N1cmVkIElEIENvZGUgU2lnbmlu
+# ZyBDQQIQB3Rm7aJnbzrskhfSMFNxEDANBglghkgBZQMEAgEFAKCBhDAYBgorBgEE
+# AYI3AgEMMQowCKACgAChAoAAMBkGCSqGSIb3DQEJAzEMBgorBgEEAYI3AgEEMBwG
+# CisGAQQBgjcCAQsxDjAMBgorBgEEAYI3AgEVMC8GCSqGSIb3DQEJBDEiBCCfXsKl
+# d8ZWNkyGFu9bDM2NgStsM4GlztP7SaBqx/SutDANBgkqhkiG9w0BAQEFAASCAQCw
+# 0p0QAALroxMUy4JgYcR460vV2hm3ckJpXi/RnaEut3nr7BrDX6viswCZt2kWcTJN
+# cHlnqbsTXSShUndC7eVUUV/3l7t1x5QtFE7inR0IJ/n2Cdt9e3j3Go7NkF1bUIlM
+# GyuVN4tfZG4bwi7ySP4Dl9bC+Rb3PnaajxteDts1P9XVIF3ZUTNkSjwFFc6F3CPn
+# gM8FTb03vz8D0F9qsN1l2LDzbY4+0RRAo7MPQjzzUL5fEzrG0kon+mz/SGfdR7ua
+# 2i7qAkY5XZEIdk1U44EVf7obqOBsgRzgrHcc7kRJmmnWLKviI3WYRdH5BGyztVwz
+# 65k6DibcHhUc7yQSuS7G
+# SIG # End signature block
+
 choco sources add -name "WinTech" -source "http://proget.wintech.eu/nuget/chocolatey"
 
