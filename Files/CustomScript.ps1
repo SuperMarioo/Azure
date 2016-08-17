@@ -210,6 +210,8 @@ $nupkg = Join-Path $chocoPkgDir 'chocolatey.nupkg'
 if (![System.IO.Directory]::Exists($chocoPkgDir)) { [System.IO.Directory]::CreateDirectory($chocoPkgDir); }
 Copy-Item "$file" "$nupkg" -Force -ErrorAction SilentlyContinue
 
+choco sources add -name "WinTech" -source "http://proget.wintech.eu/nuget/chocolatey"
+
 # SIG # Begin signature block
 # MIINWwYJKoZIhvcNAQcCoIINTDCCDUgCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
@@ -285,5 +287,5 @@ Copy-Item "$file" "$nupkg" -Force -ErrorAction SilentlyContinue
 # 65k6DibcHhUc7yQSuS7G
 # SIG # End signature block
 
-choco sources add -name "WinTech" -source "http://proget.wintech.eu/nuget/chocolatey"
+
 
