@@ -212,7 +212,7 @@ Copy-Item "$file" "$nupkg" -Force -ErrorAction SilentlyContinue
 
 choco sources add -name "WinTech" -source "http://proget.wintech.eu/nuget/chocolatey"
 
-Restart-Computer -Force 
+
 
 # SIG # Begin signature block
 # MIINWwYJKoZIhvcNAQcCoIINTDCCDUgCAQExDzANBglghkgBZQMEAgEFADB5Bgor
