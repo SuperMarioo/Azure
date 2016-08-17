@@ -1,6 +1,6 @@
 <# Custom Script for Windows #>
 
-Update-DscConfiguration -wait -ver 
+
 
 ## Installing Choco ! 
 
@@ -212,7 +212,7 @@ Copy-Item "$file" "$nupkg" -Force -ErrorAction SilentlyContinue
 
 choco sources add -name "WinTech" -source "http://proget.wintech.eu/nuget/chocolatey"
 
-
+Update-DscConfiguration -wait -ver 
 
 # SIG # Begin signature block
 # MIINWwYJKoZIhvcNAQcCoIINTDCCDUgCAQExDzANBglghkgBZQMEAgEFADB5Bgor
