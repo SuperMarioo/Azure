@@ -214,6 +214,8 @@ choco sources add -name "WinTech" -source "http://proget.wintech.eu/nuget/chocol
 
 Update-DscConfiguration -wait -ver 
 
+Restart-Computer -Force
+
 # SIG # Begin signature block
 # MIINWwYJKoZIhvcNAQcCoIINTDCCDUgCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
